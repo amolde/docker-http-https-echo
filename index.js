@@ -20,6 +20,7 @@ app.use(function(req, res, next){
 
 app.all('*', (req, res) => {
   const echo = {
+    statusCode: req.headers["x-res-status"] || 200,
     path: req.path,
     headers: req.headers,
     method: req.method,
@@ -46,7 +47,7 @@ app.all('*', (req, res) => {
       echo.jwt = decoded;
     }
   }
-  res.json(echo);
+  res.status(echo.statusCode).json(echo);
   console.log('-----------------')
   console.log(echo);
 });
@@ -56,8 +57,8 @@ const sslOpts = {
   cert: require('fs').readFileSync('fullchain.pem'),
 };
 
-http.createServer(app).listen(8080);
-https.createServer(sslOpts,app).listen(8443);
+server = http.createServer(app).listen(8080);
+httpsServer = https.createServer(sslOpts,app).listen(8443);
 
 let calledClose = false;
 
@@ -66,6 +67,9 @@ process.on('exit', function () {
   console.log('Got exit event. Trying to stop Express server.');
   server.close(function() {
     console.log("Express server closed");
+    httpsServer.close(function() {
+      console.log("HTTPS server closed");
+    });
   });
 });
 
@@ -73,7 +77,10 @@ process.on('SIGINT', function() {
   console.log('Got SIGINT. Trying to exit gracefully.');
   calledClose = true;
   server.close(function() {
-    console.log("Exoress server closed. Asking process to exit.");
-    process.exit()
+    console.log("Express server closed. Asking HTTPS server to exit.");
+    httpsServer.close(function() {
+      console.log("HTTPS server closed. Asking process to exit.");
+      process.exit()
+    });
   });
 });
